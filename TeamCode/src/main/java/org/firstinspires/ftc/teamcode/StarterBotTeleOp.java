@@ -39,10 +39,15 @@ import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 public class StarterBotTeleOp extends OpMode {
 
     // Launcher velocity PIDF gains. Must be non-zero or the launcher won't spin.
-    public static double KP = 20;
+    public static double KP = 20; // TODO: update this Kp value
     public static double KI = 0.0;
     public static double KD = 0.1;
     public static double KF = 12.5;
+    // TODO: CONSIDER CHANGING THIS KF VALUE
+
+    // day 2 comment, I made more changes to this. // this line was on Coach PRatt's computer
+    
+    // day 3 comment: Coach pratt wrote this code ON GITHUB'S WEBSITE
 
     // Dashboard telemetry declared at the class level so all methods can use it
     FtcDashboard dashboard = FtcDashboard.getInstance();
