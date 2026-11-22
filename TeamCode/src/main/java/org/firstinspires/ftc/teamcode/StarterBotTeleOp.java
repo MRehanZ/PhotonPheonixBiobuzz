@@ -45,6 +45,8 @@ public class StarterBotTeleOp extends OpMode {
     public static double KF = 12.5;
     // TODO: CONSIDER CHANGING THIS KF VALUE
 
+    // day 2 comment, I made more changes to this.
+
 
     // Dashboard telemetry declared at the class level so all methods can use it
     FtcDashboard dashboard = FtcDashboard.getInstance();
