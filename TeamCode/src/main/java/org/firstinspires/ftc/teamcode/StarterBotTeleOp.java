@@ -37,48 +37,42 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.Range;
 
+import org.firstinspires.ftc.teamcode.subsystems.MecanumDrive;
+
 @Config("LauncherTuning")
 @TeleOp(name = "Mec BioBuzz StarterBot Teleop", group = "StarterBot")
 public class StarterBotTeleOp extends OpMode {
     private Limelight3A limelight;
 
+    private final MecanumDrive drive = new MecanumDrive();
     double targetRPM;
 
     double error = 0;
     double goalX = -1.5;
     double forward, strafe, rotate;
-    double kp = 0.035;
-    double kd = 0.002;
+    double kp = 0.035; // TODO: this might be too high 24 nov
+    double kd = 0.002; // TODO: tune this 24 nov
     double lastError = 0;
     double curTime = 0;
     double lastTime = 0;
-    final double angleTolerance = 0.18; // degrees
+    final double angleTolerance = 0.18; // TODO: update this degree tolerance 24 nov
 
     // === Limelight Mounting Constants (TUNE THESE) ===
     final double CAMERA_HEIGHT_IN = 12.5;
-    final double TARGET_HEIGHT_IN = 50;
+    final double TARGET_HEIGHT_IN = 50; // TODO: this is your april tag, not your hive
     final double CAMERA_MOUNT_ANGLE = 60;
 
     // Launcher velocity PIDF gains. Must be non-zero or the launcher won't spin.
-    public static double KP = 20; // TODO: update this Kp value
+    public static double KP = 20;
     public static double KI = 0.0;
     public static double KD = 0.1;
     public static double KF = 12.5;
-    // TODO: CONSIDER CHANGING THIS KF VALUE
 
-    // day 2 comment, I made more changes to this. // this line was on Coach PRatt's computer
-    
-    // day 3 comment: Coach pratt wrote this code ON GITHUB'S WEBSITE
-
-    // Dashboard telemetry declared at the class level so all methods can use it
     FtcDashboard dashboard = FtcDashboard.getInstance();
     org.firstinspires.ftc.robotcore.external.Telemetry dashboardTelemetry = dashboard.getTelemetry();
 
     // Declare OpMode members.
-    private DcMotor leftFrontDrive = null;
-    private DcMotor leftBackDrive = null;
-    private DcMotor rightFrontDrive = null;
-    private DcMotor rightBackDrive = null;
+
     private DcMotorEx launcher = null;
     private DcMotor intake = null;
     //private CRServo leftIntakeServo = null;
@@ -90,11 +84,6 @@ public class StarterBotTeleOp extends OpMode {
      * The windmill (transfer) only runs once the launcher is above MIN.
      */
 
-    double leftFrontPower;
-    double rightFrontPower;
-    double leftBackPower;
-    double rightBackPower;
-
     double intakePower;
 
     boolean flywheelActived = false;
@@ -103,30 +92,21 @@ public class StarterBotTeleOp extends OpMode {
     @Override
     public void init() {
 
+        drive.init(hardwareMap, telemetry);
+
         limelight = hardwareMap.get(Limelight3A.class, "Limelight");
 
-        leftFrontDrive = hardwareMap.get(DcMotor.class, "front_left");
-        rightFrontDrive = hardwareMap.get(DcMotor.class, "front_right");
-        leftBackDrive = hardwareMap.get(DcMotor.class, "back_left");
-        rightBackDrive = hardwareMap.get(DcMotor.class, "back_right");
         intake = hardwareMap.get(DcMotor.class, "intake");
         launcher = hardwareMap.get(DcMotorEx.class, "launcher");
         windmillServo = hardwareMap.get(CRServo.class, "transfer");
         //leftIntakeServo = hardwareMap.get(CRServo.class, "left_flower");
         //rightIntakeServo = hardwareMap.get(CRServo.class, "right_flower");
 
-        leftFrontDrive.setDirection(DcMotor.Direction.REVERSE);
-        rightFrontDrive.setDirection(DcMotor.Direction.FORWARD);
-        leftBackDrive.setDirection(DcMotor.Direction.FORWARD);
-        rightBackDrive.setDirection(DcMotor.Direction.REVERSE);
-
-        leftFrontDrive.setZeroPowerBehavior(BRAKE);
-        rightFrontDrive.setZeroPowerBehavior(BRAKE);
-        leftBackDrive.setZeroPowerBehavior(BRAKE);
-        rightBackDrive.setZeroPowerBehavior(BRAKE);
         intake.setZeroPowerBehavior(BRAKE);
 
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        launcher.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER,
+                new PIDFCoefficients(KP, KI, KD, KF));
 
         //leftIntakeServo.setPower(0);
         //rightIntakeServo.setPower(0);
@@ -158,12 +138,20 @@ public class StarterBotTeleOp extends OpMode {
 
     @Override
     public void loop() {
+        // sense driving controls for mecanum
+        forward = -gamepad1.left_stick_y;
+        strafe = gamepad1.left_stick_x;
+        rotate = gamepad1.right_stick_x;
+
+
+        // TODO: Decide on a way to contorl fwd / rev on the intake
+        // intakePower = gamepad1.right_trigger; // - gamepad1.left_trigger;
 
         LLResult result = limelight.getLatestResult();
         boolean hasTarget = result != null && result.isValid();
         double tx = 0;
         double ty = 0;
-        double distanceInInches = 0;
+        double distanceInInches = 4;
 
         if (hasTarget) {
             tx = result.getTx();
@@ -171,7 +159,7 @@ public class StarterBotTeleOp extends OpMode {
 
             double angleToTarget =
                     CAMERA_MOUNT_ANGLE + ty;
-
+            // TODO: check your april tag square size in limelight calibration (local.limelight)
             distanceInInches =
                     (TARGET_HEIGHT_IN - CAMERA_HEIGHT_IN)
                             / Math.tan(Math.toRadians(angleToTarget));
@@ -193,7 +181,9 @@ public class StarterBotTeleOp extends OpMode {
                 if (Math.abs(error) < angleTolerance) {
                     rotate = 0;
                 } else {
-                    double pTerm = error * kp;
+                    double pTerm = error * kp; // calc pTerm
+
+                    // derivivative term calculations
                     curTime = getRuntime();
                     double deltaTime = curTime - lastTime;
                     double dTerm = ((error - lastError) / deltaTime) * kd;
@@ -201,12 +191,9 @@ public class StarterBotTeleOp extends OpMode {
                     lastError = error;
                     lastTime = curTime;
                 }
-
-            } else {
-                // ===== SEARCH MODE =====
-                rotate = gamepad1.right_stick_x; // It allows the driver to rotate the robot.
             }
         } else {
+            // stops a derivative "spike" from stale data
             lastError = 0;
             lastTime = getRuntime();
         }
@@ -226,35 +213,22 @@ public class StarterBotTeleOp extends OpMode {
             launcher.setVelocity(0);
         }
 
-        launch();
 
-        mecanumDrive(forward, strafe, rotate);
+        // ============== ACTUATE SUBSYSTEMS ==================
 
+        launch(gamepad1.right_trigger > 0.5); // if right trigger is down, shoot a ball
+        drive.driveRobotOrientated(forward, strafe, rotate); // command mecanum motors to drive
+
+        // TODO: figure out how to control your intake
+        //intake.setPower(intakePower);
+
+        // ============== TELEMETRY ==================
         telemetry.addData("Has Target", hasTarget);
         telemetry.addData("tx", tx);
         telemetry.addData("ty", ty);
         telemetry.addData("Distance (in)", distanceInInches);
         telemetry.addData("Target RPM", targetRPM);
-
-
-
         telemetry.addData("Goal X", goalX);
-
-
-        launcher.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER,
-                new PIDFCoefficients(KP, KI, KD, KF));
-
-        mecanumDrive(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
-
-        intakePower = gamepad1.right_trigger - gamepad1.left_trigger;
-
-        launch();
-
-        intake.setPower(intakePower);
-        //leftIntakeServo.setPower(intakePower);
-        //rightIntakeServo.setPower(intakePower);
-
-        telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftFrontPower, rightFrontPower);
         telemetry.addData("Triggers", "left (%.2f), right (%.2f)", gamepad1.left_trigger, gamepad1.right_trigger);
     }
 
@@ -262,48 +236,25 @@ public class StarterBotTeleOp extends OpMode {
     public void stop() {
     }
 
-    void mecanumDrive(double forward, double strafe, double rotate) {
-        leftFrontPower = forward + strafe + rotate;
-        rightFrontPower = forward - strafe - rotate;
-        leftBackPower = forward - strafe + rotate;
-        rightBackPower = forward + strafe - rotate;
 
-        double max = Math.max(Math.abs(leftFrontPower), Math.abs(rightFrontPower));
-        max = Math.max(max, Math.abs(leftBackPower));
-        max = Math.max(max, Math.abs(rightBackPower));
 
-        if (max > 1.0) {
-            leftFrontPower /= max;
-            rightFrontPower /= max;
-            leftBackPower /= max;
-            rightBackPower /= max;
-        }
+    void launch(boolean shotRequested) {
 
-        leftFrontDrive.setPower(leftFrontPower);
-        rightFrontDrive.setPower(rightFrontPower);
-        leftBackDrive.setPower(leftBackPower);
-        rightBackDrive.setPower(rightBackPower);
-    }
-
-    void launch() {
-
-        boolean shoot = gamepad1.right_bumper;
-
-        if (shoot) {
+        if (shotRequested) {
             launcher.setVelocity(targetRPM);
         } else {
             launcher.setVelocity(0);
+            return; // skip the rest of the function
         }
 
         // Only feed once the launcher is up to speed.
-        if (shoot && launcher.getVelocity() > targetRPM - 50 && launcher.getVelocity() < targetRPM + 50) {
+        if (launcher.getVelocity() > targetRPM - 50 && launcher.getVelocity() < targetRPM + 50) {
             windmillServo.setPower(1);
             intakePower += 0.5;
         } else {
             windmillServo.setPower(0);
         }
 
-        dashboardTelemetry.addData("Left bumper", shoot);
         dashboardTelemetry.addData("Launcher vel", "%.0f / %.0f", launcher.getVelocity(), targetRPM);
         dashboardTelemetry.addData("Target Velo", targetRPM);
         dashboardTelemetry.addData("Current Velo", launcher.getVelocity());
@@ -312,7 +263,6 @@ public class StarterBotTeleOp extends OpMode {
         dashboardTelemetry.addData("KD", KD);
         dashboardTelemetry.addData("KF", KF);
 
-        telemetry.addData("Left bumper", shoot);
         telemetry.addData("Launcher vel", "%.0f / %.0f", launcher.getVelocity(), targetRPM);
         telemetry.addData("Target Velo", targetRPM);
         telemetry.addData("Current Velo", launcher.getVelocity());
@@ -325,6 +275,8 @@ public class StarterBotTeleOp extends OpMode {
     }
 
     public double getIdealRPM(double distanceInInches) {
+
+        //TODO: update this to be relevant for biobuzz - 24 nov
         double d0 = 107, rpm0 = 1250;
         double d1 = 110, rpm1 = 1250.0;
         double d2 = 113, rpm2 = 1250.0;
@@ -335,6 +287,8 @@ public class StarterBotTeleOp extends OpMode {
 
         double rpm;
 
+
+        // linear interpolate between 2 values
         if (distanceInInches <= d0) rpm = rpm0;
         else if (distanceInInches <= d1)
             rpm = rpm0 + ((rpm1 - rpm0) / (d1 - d0)) * (distanceInInches - d0);
